@@ -1,0 +1,8 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    paas_ap_password: password
+  roles:
+    - role: common_setup

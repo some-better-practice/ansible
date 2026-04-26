@@ -1,0 +1,4 @@
+---
+- name: reboot required
+  debug:
+    msg: "SELinux state changed — a reboot is required to fully apply the setting."

@@ -1,0 +1,32 @@
+# vsftpd config — standard FTP mode
+# Managed by Ansible — do not edit manually
+
+anonymous_enable={{ 'YES' if ftp_anonymous_enable else 'NO' }}
+local_enable={{ 'YES' if ftp_local_enable else 'NO' }}
+write_enable={{ 'YES' if ftp_write_enable else 'NO' }}
+local_umask={{ ftp_local_umask }}
+
+dirmessage_enable=YES
+xferlog_enable=YES
+xferlog_std_format=YES
+xferlog_file={{ _ftp_log_file }}
+
+connect_from_port_20=YES
+listen=YES
+listen_ipv6=NO
+listen_port={{ ftp_port }}
+
+pam_service_name=vsftpd
+userlist_enable=YES
+tcp_wrappers=NO
+
+# Restrict users to their FTP directory
+local_root={{ ftp_root }}/$USER
+user_sub_token=$USER
+chroot_local_user=YES
+allow_writeable_chroot=YES
+
+# PASV range
+pasv_enable=YES
+pasv_min_port={{ ftp_pasv_min_port }}
+pasv_max_port={{ ftp_pasv_max_port }}

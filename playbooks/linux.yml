@@ -1,0 +1,28 @@
+---
+- name: Common setup for all Linux hosts
+  hosts: linux
+  become: true
+  roles:
+    - role: common_setup
+      tags: [common, always]
+
+- name: Deploy SFTP (vsftpd + OpenSSH SFTP)
+  hosts: linux
+  become: true
+  roles:
+    - role: sftp
+      tags: [sftp]
+
+- name: Deploy FTP (vsftpd)
+  hosts: linux
+  become: true
+  roles:
+    - role: ftp
+      tags: [ftp]
+
+- name: Deploy MySQL / MariaDB
+  hosts: linux
+  become: true
+  roles:
+    - role: mysql
+      tags: [mysql]

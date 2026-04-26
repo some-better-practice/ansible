@@ -1,0 +1,4 @@
+---
+# Internal role variables — not meant for override
+_paas_ap_groups:
+  - wheel

@@ -1,0 +1,11 @@
+---
+ansible_user: ansible
+ansible_python_interpreter: /usr/bin/python3
+
+paas_ap_username: paas_ap
+sftp_root: /var/sftp
+ftp_root: /var/ftp
+
+mysql_database: appdb
+mysql_user: appuser
+mysql_port: 3306

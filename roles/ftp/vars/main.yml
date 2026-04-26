@@ -1,0 +1,7 @@
+---
+_ftp_packages:
+  - vsftpd
+  - ftp
+
+_ftp_vsftpd_config: /etc/vsftpd/vsftpd.conf
+_ftp_log_file: /var/log/vsftpd.log

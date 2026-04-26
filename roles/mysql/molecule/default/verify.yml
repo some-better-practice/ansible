@@ -1,0 +1,140 @@
+---
+- name: Verify MySQL (MariaDB) setup
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    mysql_root_password: "R00tP@ssword"
+    mysql_database: appdb
+    mysql_user: appuser
+    mysql_password: "AppP@ssword"
+    mysql_socket: /var/lib/mysql/mysql.sock
+
+  tasks:
+    # ── Service check ─────────────────────────────────────────────────────────
+
+    - name: Verify mariadb is running
+      systemd:
+        name: mariadb
+      register: _mariadb_state
+
+    - name: Assert mariadb active
+      assert:
+        that: _mariadb_state.status.ActiveState == "active"
+        fail_msg: "MariaDB is not running"
+
+    # ── Root password & security ──────────────────────────────────────────────
+
+    - name: Verify root login with password
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        query: "SELECT 1"
+      register: _root_login
+
+    - name: Assert root login works
+      assert:
+        that: _root_login.rowcount[0] == 1
+        fail_msg: "Root login to MariaDB failed"
+
+    - name: Verify anonymous users are removed
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        query: "SELECT COUNT(*) AS cnt FROM mysql.user WHERE user = ''"
+      register: _anon_users
+
+    - name: Assert no anonymous users
+      assert:
+        that: _anon_users.query_result[0][0]['cnt'] == 0
+        fail_msg: "Anonymous users still exist in MariaDB"
+
+    # ── Database ──────────────────────────────────────────────────────────────
+
+    - name: Verify application database exists
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        query: "SHOW DATABASES LIKE '{{ mysql_database }}'"
+      register: _db_check
+
+    - name: Assert database exists
+      assert:
+        that: _db_check.rowcount[0] == 1
+        fail_msg: "Database '{{ mysql_database }}' not found"
+
+    # ── Tables ────────────────────────────────────────────────────────────────
+
+    - name: Verify users table exists
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_db: "{{ mysql_database }}"
+        query: "SHOW TABLES LIKE 'users'"
+      register: _users_table
+
+    - name: Assert users table exists
+      assert:
+        that: _users_table.rowcount[0] == 1
+        fail_msg: "Table 'users' not found in {{ mysql_database }}"
+
+    - name: Verify audit_log table exists
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_db: "{{ mysql_database }}"
+        query: "SHOW TABLES LIKE 'audit_log'"
+      register: _audit_table
+
+    - name: Assert audit_log table exists
+      assert:
+        that: _audit_table.rowcount[0] == 1
+        fail_msg: "Table 'audit_log' not found in {{ mysql_database }}"
+
+    # ── App user privileges ───────────────────────────────────────────────────
+
+    - name: Verify appuser can connect and write
+      community.mysql.mysql_query:
+        login_host: "127.0.0.1"
+        login_port: 3306
+        login_user: "{{ mysql_user }}"
+        login_password: "{{ mysql_password }}"
+        login_db: "{{ mysql_database }}"
+        query: >
+          INSERT INTO users (username, email)
+          VALUES ('test_molecule', 'molecule@test.local')
+      register: _insert_test
+
+    - name: Assert insert succeeded
+      assert:
+        that: _insert_test.rowcount[0] == 1
+        fail_msg: "appuser could not INSERT into users table"
+
+    - name: Verify inserted row exists
+      community.mysql.mysql_query:
+        login_host: "127.0.0.1"
+        login_port: 3306
+        login_user: "{{ mysql_user }}"
+        login_password: "{{ mysql_password }}"
+        login_db: "{{ mysql_database }}"
+        query: "SELECT COUNT(*) AS cnt FROM users WHERE username = 'test_molecule'"
+      register: _select_test
+
+    - name: Assert row found
+      assert:
+        that: _select_test.query_result[0][0]['cnt'] == 1
+        fail_msg: "Inserted row not found — SELECT failed"
+
+    - name: Cleanup test row
+      community.mysql.mysql_query:
+        login_host: "127.0.0.1"
+        login_port: 3306
+        login_user: "{{ mysql_user }}"
+        login_password: "{{ mysql_password }}"
+        login_db: "{{ mysql_database }}"
+        query: "DELETE FROM users WHERE username = 'test_molecule'"

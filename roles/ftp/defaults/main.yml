@@ -1,0 +1,14 @@
+---
+ftp_root: /var/ftp
+ftp_port: 21
+ftp_pasv_min_port: 50000
+ftp_pasv_max_port: 50100
+
+ftp_anonymous_enable: false
+ftp_local_enable: true
+ftp_write_enable: true
+ftp_local_umask: "022"
+
+ftp_users:
+  - name: paas_ap
+    password: password

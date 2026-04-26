@@ -1,0 +1,6 @@
+---
+env: staging
+ntp_servers:
+  - 192.168.10.1
+dns_servers:
+  - 192.168.10.2

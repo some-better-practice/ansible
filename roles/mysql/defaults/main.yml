@@ -1,0 +1,24 @@
+---
+mysql_root_password: "R00tP@ssword"
+mysql_port: 3306
+mysql_bind_address: "127.0.0.1"
+
+mysql_database: appdb
+mysql_user: appuser
+mysql_password: "AppP@ssword"
+mysql_user_priv: "appdb.*:ALL"
+
+mysql_tables:
+  - name: users
+    definition: |
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      username   VARCHAR(50)  NOT NULL UNIQUE,
+      email      VARCHAR(100) NOT NULL UNIQUE,
+      created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+  - name: audit_log
+    definition: |
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      user_id    INT          NOT NULL,
+      action     VARCHAR(100) NOT NULL,
+      logged_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

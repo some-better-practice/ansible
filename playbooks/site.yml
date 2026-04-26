@@ -1,0 +1,6 @@
+---
+- name: Configure all Linux hosts
+  import_playbook: linux.yml
+
+- name: Configure all Windows hosts
+  import_playbook: windows.yml

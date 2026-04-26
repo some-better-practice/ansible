@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: mysql
+  author: tsmc
+  description: Install and configure MariaDB (MySQL-compatible) on RHEL8
+  min_ansible_version: "2.12"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+dependencies: []

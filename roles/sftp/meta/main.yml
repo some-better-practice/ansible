@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  role_name: sftp
+  author: tsmc
+  description: Configure OpenSSH SFTP subsystem with chroot for paas_ap
+  min_ansible_version: "2.12"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+dependencies:
+  - role: common_setup

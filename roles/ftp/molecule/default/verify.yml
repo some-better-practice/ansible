@@ -1,0 +1,119 @@
+---
+- name: Verify FTP setup
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    ftp_root: /var/ftp
+    test_user: paas_ap
+    test_password: password
+
+  tasks:
+    # ── Service check ─────────────────────────────────────────────────────────
+
+    - name: Verify vsftpd is running
+      systemd:
+        name: vsftpd
+      register: _vsftpd_state
+
+    - name: Assert vsftpd active
+      assert:
+        that: _vsftpd_state.status.ActiveState == "active"
+        fail_msg: "vsftpd is not running"
+
+    # ── Config file ───────────────────────────────────────────────────────────
+
+    - name: Check vsftpd config exists
+      stat:
+        path: /etc/vsftpd/vsftpd.conf
+      register: _config_stat
+
+    - name: Assert config file exists
+      assert:
+        that: _config_stat.stat.exists
+        fail_msg: "/etc/vsftpd/vsftpd.conf not found"
+
+    - name: Verify anonymous FTP is disabled
+      command: grep -q "^anonymous_enable=NO" /etc/vsftpd/vsftpd.conf
+      register: _anon_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert anonymous FTP disabled
+      assert:
+        that: _anon_check.rc == 0
+        fail_msg: "anonymous_enable is not set to NO"
+
+    # ── Directory structure ───────────────────────────────────────────────────
+
+    - name: Check FTP directory for paas_ap
+      stat:
+        path: "{{ ftp_root }}/{{ test_user }}"
+      register: _ftp_user_dir
+
+    - name: Assert user FTP directory exists
+      assert:
+        that:
+          - _ftp_user_dir.stat.exists
+          - _ftp_user_dir.stat.pw_name == test_user
+        fail_msg: "FTP directory for {{ test_user }} not found or wrong ownership"
+
+    # ── FTP connectivity test via Python ftplib ───────────────────────────────
+
+    - name: Write FTP test script
+      copy:
+        dest: /tmp/ftp_test.py
+        mode: "0755"
+        content: |
+          import ftplib, sys, io, traceback
+
+          HOST = '127.0.0.1'
+          PORT = 21
+          USER = '{{ test_user }}'
+          PASS = '{{ test_password }}'
+
+          try:
+              ftp = ftplib.FTP()
+              ftp.connect(HOST, PORT, timeout=10)
+              ftp.login(USER, PASS)
+              print(f"[OK] Login as {USER} succeeded")
+
+              ftp.cwd('/')
+              pwd = ftp.pwd()
+              print(f"[OK] Working directory: {pwd}")
+
+              data = io.BytesIO(b'FTP transfer test content')
+              ftp.storbinary('STOR ftp_test.txt', data)
+              print("[OK] File upload succeeded")
+
+              files = ftp.nlst()
+              print(f"[OK] Files in current dir: {files}")
+              assert 'ftp_test.txt' in files, "Uploaded file not found in listing"
+
+              buf = io.BytesIO()
+              ftp.retrbinary('RETR ftp_test.txt', buf.write)
+              content = buf.getvalue().decode()
+              assert content == 'FTP transfer test content', f"Content mismatch: {content!r}"
+              print("[OK] File download and content verification succeeded")
+
+              ftp.delete('ftp_test.txt')
+              ftp.quit()
+              print("[OK] All FTP tests passed")
+
+          except Exception as e:
+              traceback.print_exc()
+              sys.exit(1)
+
+    - name: Test FTP login and file transfer as paas_ap
+      command: python3 /tmp/ftp_test.py
+      register: _ftp_test
+      changed_when: false
+
+    - name: Show FTP test output
+      debug:
+        var: _ftp_test.stdout_lines
+
+    - name: Assert FTP test passed
+      assert:
+        that: _ftp_test.rc == 0
+        fail_msg: "FTP connectivity test failed"

@@ -1,0 +1,101 @@
+---
+- name: Install MariaDB packages
+  dnf:
+    name: "{{ _mysql_packages }}"
+    state: present
+
+- name: Deploy MariaDB server config
+  template:
+    src: mariadb-server.cnf.j2
+    dest: "{{ _mysql_config_dir }}/mariadb-server-ansible.cnf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart mariadb
+
+- name: Start and enable MariaDB
+  systemd:
+    name: "{{ _mysql_service }}"
+    state: started
+    enabled: true
+
+# ── Root password ─────────────────────────────────────────────────────────────
+
+- name: Set MariaDB root password
+  block:
+    - name: Set root password via unix_socket (first run)
+      community.mysql.mysql_user:
+        login_unix_socket: "{{ _mysql_socket }}"
+        name: root
+        host_all: true
+        password: "{{ mysql_root_password }}"
+        state: present
+      no_log: true
+  rescue:
+    - name: Set root password with credentials (subsequent runs)
+      community.mysql.mysql_user:
+        login_unix_socket: "{{ _mysql_socket }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        name: root
+        host_all: true
+        password: "{{ mysql_root_password }}"
+        state: present
+      no_log: true
+
+- name: Remove anonymous users
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    name: ""
+    host_all: true
+    state: absent
+  no_log: true
+
+- name: Remove test database
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    name: test
+    state: absent
+
+# ── Application database & user ───────────────────────────────────────────────
+
+- name: Create application database
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    name: "{{ mysql_database }}"
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+    state: present
+
+- name: Create application user
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    name: "{{ mysql_user }}"
+    password: "{{ mysql_password }}"
+    priv: "{{ mysql_user_priv }}"
+    host: "localhost"
+    state: present
+  no_log: true
+
+# ── Tables ────────────────────────────────────────────────────────────────────
+
+- name: Create application tables
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_db: "{{ mysql_database }}"
+    query: |
+      CREATE TABLE IF NOT EXISTS `{{ item.name }}` (
+        {{ item.definition }}
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  loop: "{{ mysql_tables }}"
+  changed_when: false

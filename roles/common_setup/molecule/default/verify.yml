@@ -1,0 +1,46 @@
+---
+- name: Verify common_setup
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Verify paas_ap user exists
+      getent:
+        database: passwd
+        key: paas_ap
+      register: _user_info
+
+    - name: Assert paas_ap user created
+      assert:
+        that:
+          - "'paas_ap' in _user_info.ansible_facts.getent_passwd"
+        fail_msg: "User paas_ap was not created"
+
+    - name: Assert paas_ap home directory exists
+      stat:
+        path: /home/paas_ap
+      register: _home_dir
+
+    - name: Assert home directory present
+      assert:
+        that:
+          - _home_dir.stat.exists
+          - _home_dir.stat.isdir
+        fail_msg: "/home/paas_ap does not exist"
+
+    - name: Verify SELinux config is set to disabled
+      lineinfile:
+        path: /etc/selinux/config
+        regexp: "^SELINUX="
+        line: "SELINUX=disabled"
+        state: present
+      check_mode: true
+      register: _selinux_config
+      failed_when: false
+
+    - name: Assert SELinux configured as disabled
+      assert:
+        that:
+          - not _selinux_config.changed
+        fail_msg: "SELinux config is not set to disabled"

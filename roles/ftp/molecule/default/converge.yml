@@ -1,0 +1,12 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    paas_ap_password: password
+    ftp_users:
+      - name: paas_ap
+        password: password
+  roles:
+    - role: common_setup
+    - role: ftp

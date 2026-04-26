@@ -1,0 +1,7 @@
+---
+_sftp_packages:
+  - openssh-server
+  - vsftpd
+
+_sftp_sshd_config: /etc/ssh/sshd_config
+_sftp_vsftpd_config: /etc/vsftpd/vsftpd_sftp.conf

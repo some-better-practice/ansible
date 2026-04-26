@@ -1,0 +1,148 @@
+---
+- name: Verify SFTP setup
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    sftp_root: /var/sftp
+    test_user: paas_ap
+    test_password: password
+
+  tasks:
+    # ── Service checks ────────────────────────────────────────────────────────
+
+    - name: Verify sshd is running
+      systemd:
+        name: sshd
+      register: _sshd_state
+
+    - name: Assert sshd active
+      assert:
+        that: _sshd_state.status.ActiveState == "active"
+        fail_msg: "sshd is not running"
+
+    - name: Verify vsftpd is running
+      systemd:
+        name: vsftpd
+      register: _vsftpd_state
+
+    - name: Assert vsftpd active
+      assert:
+        that: _vsftpd_state.status.ActiveState == "active"
+        fail_msg: "vsftpd is not running"
+
+    # ── Directory structure ───────────────────────────────────────────────────
+
+    - name: Check chroot root directory (must be owned by root)
+      stat:
+        path: "{{ sftp_root }}/{{ test_user }}"
+      register: _chroot_dir
+
+    - name: Assert chroot directory owned by root with correct mode
+      assert:
+        that:
+          - _chroot_dir.stat.exists
+          - _chroot_dir.stat.pw_name == "root"
+          - _chroot_dir.stat.mode == "0755"
+        fail_msg: "Chroot directory ownership or mode is incorrect"
+
+    - name: Check upload directory (must be owned by paas_ap)
+      stat:
+        path: "{{ sftp_root }}/{{ test_user }}/upload"
+      register: _upload_dir
+
+    - name: Assert upload directory owned by paas_ap
+      assert:
+        that:
+          - _upload_dir.stat.exists
+          - _upload_dir.stat.pw_name == test_user
+        fail_msg: "Upload directory not found or wrong ownership"
+
+    # ── sshd_config verification ─────────────────────────────────────────────
+
+    - name: Check sshd_config contains internal-sftp subsystem
+      command: grep -q "internal-sftp" /etc/ssh/sshd_config
+      register: _subsystem_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert SFTP subsystem configured
+      assert:
+        that: _subsystem_check.rc == 0
+        fail_msg: "SFTP subsystem not configured in sshd_config"
+
+    - name: Check ChrootDirectory block for paas_ap
+      command: grep -q "ChrootDirectory {{ sftp_root }}/{{ test_user }}" /etc/ssh/sshd_config
+      register: _chroot_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert ChrootDirectory configured
+      assert:
+        that: _chroot_check.rc == 0
+        fail_msg: "ChrootDirectory for paas_ap not in sshd_config"
+
+    # ── SFTP file transfer test ───────────────────────────────────────────────
+
+    - name: Install sshpass and sftp client for SFTP test
+      dnf:
+        name:
+          - sshpass
+          - openssh-clients
+        state: present
+
+    - name: Create test file for SFTP upload
+      copy:
+        content: "SFTP transfer test — ansible molecule verify"
+        dest: /tmp/sftp_test.txt
+        mode: "0644"
+
+    - name: Transfer file via SFTP as paas_ap
+      shell: |
+        sshpass -p '{{ test_password }}' sftp \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -o LogLevel=ERROR \
+          {{ test_user }}@127.0.0.1 <<'SFTP'
+        put /tmp/sftp_test.txt /upload/sftp_test.txt
+        ls /upload/
+        bye
+        SFTP
+      register: _sftp_result
+      changed_when: false
+
+    - name: Assert file was uploaded
+      assert:
+        that: "'sftp_test.txt' in _sftp_result.stdout"
+        fail_msg: "SFTP file upload failed. Output: {{ _sftp_result.stdout }}"
+
+    - name: Verify file exists in upload directory
+      stat:
+        path: "{{ sftp_root }}/{{ test_user }}/upload/sftp_test.txt"
+      register: _uploaded_file
+
+    - name: Assert uploaded file found on disk
+      assert:
+        that: _uploaded_file.stat.exists
+        fail_msg: "Uploaded file not found in {{ sftp_root }}/{{ test_user }}/upload/"
+
+    - name: Verify chroot prevents directory traversal
+      shell: |
+        sshpass -p '{{ test_password }}' sftp \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -o LogLevel=ERROR \
+          {{ test_user }}@127.0.0.1 <<'SFTP' 2>&1 || true
+        cd /etc
+        bye
+        SFTP
+      register: _chroot_test
+      changed_when: false
+
+    - name: Assert chroot blocks access to /etc
+      assert:
+        that: >
+          'No such file' in _chroot_test.stdout or
+          'Permission denied' in _chroot_test.stdout or
+          _chroot_test.rc != 0
+        fail_msg: "Chroot did NOT prevent access to /etc — security misconfiguration!"
