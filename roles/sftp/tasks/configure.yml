@@ -1,0 +1,39 @@
+---
+- name: Configure sshd_config for SFTP subsystem with chroot
+  blockinfile:
+    path: "{{ _sftp_sshd_config }}"
+    marker: "# {mark} ANSIBLE SFTP BLOCK"
+    block: |
+      Subsystem sftp internal-sftp -l INFO
+
+      {% for user in sftp_users %}
+      Match User {{ user.name }}
+      {% if user.chroot | default(true) %}
+          ChrootDirectory {{ sftp_root }}/{{ user.name }}
+      {% endif %}
+          ForceCommand internal-sftp
+          AllowTcpForwarding no
+          X11Forwarding no
+      {% endfor %}
+  notify: restart sshd
+
+- name: Deploy vsftpd SFTP-mode config
+  template:
+    src: vsftpd_sftp.conf.j2
+    dest: "{{ _sftp_vsftpd_config }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart vsftpd
+
+- name: Start and enable sshd
+  systemd:
+    name: sshd
+    state: started
+    enabled: true
+
+- name: Start and enable vsftpd
+  systemd:
+    name: vsftpd
+    state: started
+    enabled: true

@@ -1,0 +1,72 @@
+---
+- name: "[verify] Check vsftpd service is running"
+  systemd:
+    name: vsftpd
+  register: _vsftpd_svc
+
+- name: "[verify] Assert vsftpd active"
+  assert:
+    that: _vsftpd_svc.status.ActiveState == "active"
+    fail_msg: "vsftpd is not running"
+
+- name: "[verify] Check port {{ ftp_port }} is listening"
+  command: ss -tlnp
+  register: _ss_out
+  changed_when: false
+
+- name: "[verify] Assert FTP port is open"
+  assert:
+    that: "':{{ ftp_port }}' in _ss_out.stdout"
+    fail_msg: "vsftpd is not listening on port {{ ftp_port }}"
+
+- name: "[verify] Write FTP functional test script"
+  copy:
+    dest: /tmp/ftp_verify.py
+    mode: "0700"
+    content: |
+      import ftplib, sys, io, traceback
+
+      HOST = '127.0.0.1'
+      PORT = {{ ftp_port }}
+      {% for user in ftp_users %}
+      USER = '{{ user.name }}'
+      PASS = '{{ user.password }}'
+      {% endfor %}
+
+      try:
+          ftp = ftplib.FTP()
+          ftp.connect(HOST, PORT, timeout=10)
+          ftp.login(USER, PASS)
+          print(f"[OK] Login as {USER}")
+
+          pwd = ftp.pwd()
+          print(f"[OK] Working directory: {pwd}")
+
+          data = io.BytesIO(b'verify test content')
+          ftp.storbinary('STOR verify_test.txt', data)
+          print("[OK] File upload succeeded")
+
+          files = ftp.nlst()
+          assert 'verify_test.txt' in files, f"File not found in listing: {files}"
+          print(f"[OK] File visible in listing")
+
+          buf = io.BytesIO()
+          ftp.retrbinary('RETR verify_test.txt', buf.write)
+          assert buf.getvalue() == b'verify test content', "Download content mismatch"
+          print("[OK] File download content verified")
+
+          ftp.delete('verify_test.txt')
+          ftp.quit()
+          print("[OK] All FTP verify checks passed")
+      except Exception:
+          traceback.print_exc()
+          sys.exit(1)
+
+- name: "[verify] Run FTP functional test (login, navigate, upload, download)"
+  command: python3 /tmp/ftp_verify.py
+  register: _ftp_verify
+  changed_when: false
+
+- name: "[verify] Show FTP test output"
+  debug:
+    var: _ftp_verify.stdout_lines

@@ -1,0 +1,31 @@
+---
+- name: Install SFTP packages
+  dnf:
+    name: "{{ _sftp_packages }}"
+    state: present
+
+- name: Create SFTP chroot root directory
+  file:
+    path: "{{ sftp_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create per-user chroot directories (owned by root for chroot safety)
+  file:
+    path: "{{ sftp_root }}/{{ item.name }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ sftp_users }}"
+
+- name: Create writable upload subdirectory for each SFTP user
+  file:
+    path: "{{ sftp_root }}/{{ item.name }}/upload"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0755"
+  loop: "{{ sftp_users }}"

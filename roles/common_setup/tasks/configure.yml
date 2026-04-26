@@ -1,0 +1,20 @@
+---
+- name: Check SELinux availability
+  command: getenforce
+  register: _selinux_status
+  changed_when: false
+  failed_when: false
+
+- name: Disable SELinux permanently (config file)
+  ansible.posix.selinux:
+    state: "{{ selinux_state }}"
+  when: _selinux_status.rc == 0
+  notify: reboot required
+
+- name: Set SELinux to permissive for current session (no reboot needed)
+  command: setenforce 0
+  when:
+    - _selinux_status.rc == 0
+    - _selinux_status.stdout == "Enforcing"
+  changed_when: true
+  failed_when: false

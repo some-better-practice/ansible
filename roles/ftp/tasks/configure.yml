@@ -1,0 +1,15 @@
+---
+- name: Deploy vsftpd configuration
+  template:
+    src: vsftpd.conf.j2
+    dest: "{{ _ftp_vsftpd_config }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart vsftpd
+
+- name: Start and enable vsftpd
+  systemd:
+    name: vsftpd
+    state: started
+    enabled: true

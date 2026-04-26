@@ -1,0 +1,30 @@
+---
+- name: "[verify] Check paas_ap user exists"
+  command: id {{ paas_ap_username }}
+  changed_when: false
+
+- name: "[verify] Check paas_ap home directory exists with correct ownership"
+  stat:
+    path: "{{ paas_ap_home }}"
+  register: _home_stat
+
+- name: "[verify] Assert home directory ownership"
+  assert:
+    that:
+      - _home_stat.stat.exists
+      - _home_stat.stat.pw_name == paas_ap_username
+      - _home_stat.stat.mode == "0700"
+    fail_msg: "paas_ap home directory missing or wrong ownership/mode"
+
+- name: "[verify] Check SELinux is disabled or permissive"
+  command: getenforce
+  register: _selinux_check
+  changed_when: false
+  failed_when: false
+
+- name: "[verify] Assert SELinux is not enforcing"
+  assert:
+    that: >
+      _selinux_check.rc != 0 or
+      _selinux_check.stdout in ['Disabled', 'Permissive']
+    fail_msg: "SELinux is still Enforcing — expected Disabled or Permissive"

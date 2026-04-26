@@ -1,0 +1,5 @@
+---
+- name: Install MariaDB packages
+  dnf:
+    name: "{{ _mysql_packages }}"
+    state: present

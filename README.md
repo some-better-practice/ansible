@@ -1,3 +1,5 @@
+要先 source .venv/bin/activate 才能執行 molecule。
+
 分階段執行（除錯用）
 molecule test 會跑完整流程並自動刪容器。除錯時改用分步驟：
 

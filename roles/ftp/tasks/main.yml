@@ -1,37 +1,5 @@
 ---
-- name: Install FTP packages
-  dnf:
-    name: "{{ _ftp_packages }}"
-    state: present
-
-- name: Create FTP root directory
-  file:
-    path: "{{ ftp_root }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Create per-user FTP directories
-  file:
-    path: "{{ ftp_root }}/{{ item.name }}"
-    state: directory
-    owner: "{{ item.name }}"
-    group: "{{ item.name }}"
-    mode: "0755"
-  loop: "{{ ftp_users }}"
-
-- name: Deploy vsftpd configuration
-  template:
-    src: vsftpd.conf.j2
-    dest: "{{ _ftp_vsftpd_config }}"
-    owner: root
-    group: root
-    mode: "0600"
-  notify: restart vsftpd
-
-- name: Start and enable vsftpd
-  systemd:
-    name: vsftpd
-    state: started
-    enabled: true
+- import_tasks: install.yml
+- import_tasks: configure.yml
+- import_tasks: verify.yml
+  tags: [verify]

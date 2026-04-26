@@ -1,0 +1,130 @@
+---
+- name: "[verify] Check sshd service is running"
+  systemd:
+    name: sshd
+  register: _sshd_svc
+
+- name: "[verify] Assert sshd active"
+  assert:
+    that: _sshd_svc.status.ActiveState == "active"
+    fail_msg: "sshd is not running"
+
+- name: "[verify] Check port {{ sshd_sftp_port }} is listening"
+  command: ss -tlnp
+  register: _ss_out
+  changed_when: false
+
+- name: "[verify] Assert SSH port is open"
+  assert:
+    that: "':{{ sshd_sftp_port }}' in _ss_out.stdout"
+    fail_msg: "sshd is not listening on port {{ sshd_sftp_port }}"
+
+- name: "[verify] Check sshd_config has internal-sftp subsystem"
+  command: grep -q "internal-sftp" {{ _sftp_sshd_config }}
+  changed_when: false
+
+- name: "[verify] Ensure sshpass and sftp client are available"
+  dnf:
+    name:
+      - sshpass
+      - openssh-clients
+    state: present
+
+- name: "[verify] Test SFTP login and working directory"
+  shell: |
+    sshpass -p '{{ item.password }}' sftp \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o LogLevel=ERROR \
+      {{ item.name }}@127.0.0.1 <<'SFTP'
+    pwd
+    bye
+    SFTP
+  loop: "{{ sftp_users }}"
+  register: _sftp_login
+  changed_when: false
+
+- name: "[verify] Assert SFTP login succeeded"
+  assert:
+    that: item.rc == 0
+    fail_msg: "SFTP login failed for {{ item.item.name }}"
+  loop: "{{ _sftp_login.results }}"
+
+- name: "[verify] Test SFTP navigation — chrooted user can reach /upload"
+  shell: |
+    sshpass -p '{{ item.password }}' sftp \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o LogLevel=ERROR \
+      {{ item.name }}@127.0.0.1 <<'SFTP'
+    cd /upload
+    pwd
+    bye
+    SFTP
+  loop: "{{ sftp_users }}"
+  register: _sftp_nav
+  changed_when: false
+
+- name: "[verify] Assert /upload navigation succeeded"
+  assert:
+    that:
+      - item.rc == 0
+      - "'/upload' in item.stdout"
+    fail_msg: "Navigation to /upload failed for {{ item.item.name }}"
+  loop: "{{ _sftp_nav.results }}"
+
+- name: "[verify] Create local test file for upload"
+  copy:
+    dest: /tmp/sftp_role_verify.txt
+    content: "role verify test"
+    mode: "0644"
+
+- name: "[verify] Test SFTP file upload, list, download, delete"
+  shell: |
+    sshpass -p '{{ item.password }}' sftp \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o LogLevel=ERROR \
+      {{ item.name }}@127.0.0.1 <<'SFTP'
+    put /tmp/sftp_role_verify.txt /upload/sftp_role_verify.txt
+    ls /upload/
+    get /upload/sftp_role_verify.txt /tmp/sftp_role_verify_dl.txt
+    rm /upload/sftp_role_verify.txt
+    bye
+    SFTP
+  loop: "{{ sftp_users }}"
+  register: _sftp_ops
+  changed_when: false
+
+- name: "[verify] Assert file operations succeeded"
+  assert:
+    that:
+      - item.rc == 0
+      - "'sftp_role_verify.txt' in item.stdout"
+    fail_msg: "SFTP file operations failed for {{ item.item.name }}"
+  loop: "{{ _sftp_ops.results }}"
+
+- name: "[verify] Assert chroot blocks access to /etc"
+  shell: |
+    sshpass -p '{{ item.password }}' sftp \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o LogLevel=ERROR \
+      {{ item.name }}@127.0.0.1 <<'SFTP' 2>&1 || true
+    cd /etc
+    bye
+    SFTP
+  loop: "{{ sftp_users }}"
+  when: item.chroot | default(true)
+  register: _sftp_chroot
+  changed_when: false
+
+- name: "[verify] Assert chroot boundary is enforced"
+  assert:
+    that: >
+      'No such file' in item.stdout or
+      'Permission denied' in item.stdout or
+      item.rc != 0
+    fail_msg: "Chroot NOT enforced for {{ item.item.name }} — /etc is accessible!"
+  loop: "{{ _sftp_chroot.results }}"
+  when: not item.skipped | default(false)

@@ -1,0 +1,100 @@
+---
+- name: "[verify] Check mariadb service is running"
+  systemd:
+    name: "{{ _mysql_service }}"
+  register: _mariadb_svc
+
+- name: "[verify] Assert mariadb active"
+  assert:
+    that: _mariadb_svc.status.ActiveState == "active"
+    fail_msg: "MariaDB is not running"
+
+- name: "[verify] Check port 3306 is listening"
+  command: ss -tlnp
+  register: _ss_out
+  changed_when: false
+
+- name: "[verify] Assert MariaDB port is open"
+  assert:
+    that: "':3306' in _ss_out.stdout"
+    fail_msg: "MariaDB is not listening on port 3306"
+
+- name: "[verify] Check root login with password works"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    query: "SELECT 1"
+  register: _root_login
+  no_log: true
+
+- name: "[verify] Assert no anonymous users"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    query: "SELECT COUNT(*) AS cnt FROM mysql.user WHERE user = ''"
+  register: _anon_check
+
+- name: "[verify] Assert anonymous users removed"
+  assert:
+    that: _anon_check.query_result[0][0]['cnt'] == 0
+    fail_msg: "Anonymous users still exist"
+
+- name: "[verify] Check application database exists"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    query: "SHOW DATABASES LIKE '{{ mysql_database }}'"
+  register: _db_check
+
+- name: "[verify] Assert application database exists"
+  assert:
+    that: _db_check.rowcount[0] == 1
+    fail_msg: "Database '{{ mysql_database }}' not found"
+
+- name: "[verify] Check all expected tables exist"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ _mysql_socket }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_db: "{{ mysql_database }}"
+    query: "SHOW TABLES LIKE '{{ item.name }}'"
+  register: _table_check
+  loop: "{{ mysql_tables }}"
+
+- name: "[verify] Assert all tables exist"
+  assert:
+    that: item.rowcount[0] == 1
+    fail_msg: "Table '{{ item.item.name }}' not found in {{ mysql_database }}"
+  loop: "{{ _table_check.results }}"
+
+- name: "[verify] Check application user can connect and write"
+  community.mysql.mysql_query:
+    login_host: "127.0.0.1"
+    login_port: 3306
+    login_user: "{{ mysql_user }}"
+    login_password: "{{ mysql_password }}"
+    login_db: "{{ mysql_database }}"
+    query: >
+      INSERT INTO users (username, email)
+      VALUES ('_verify_probe', '_verify@probe.local')
+  no_log: true
+  register: _insert_test
+
+- name: "[verify] Assert app user can INSERT"
+  assert:
+    that: _insert_test.rowcount[0] == 1
+    fail_msg: "{{ mysql_user }} could not INSERT into users table"
+
+- name: "[verify] Cleanup probe row"
+  community.mysql.mysql_query:
+    login_host: "127.0.0.1"
+    login_port: 3306
+    login_user: "{{ mysql_user }}"
+    login_password: "{{ mysql_password }}"
+    login_db: "{{ mysql_database }}"
+    query: "DELETE FROM users WHERE username = '_verify_probe'"
+  no_log: true
+  changed_when: false
