@@ -1,0 +1,8 @@
+---
+paas_ap_username: paas_ap
+paas_ap_password: password
+paas_ap_uid: 1500
+paas_ap_shell: /bin/bash
+paas_ap_home: /home/paas_ap
+
+selinux_state: disabled
