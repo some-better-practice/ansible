@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  role_name: aspnet
+  author: ansible
+  description: Install and configure ASP.NET and .NET Core Hosting Bundle on Windows Server
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Windows
+      versions:
+        - 2019
+        - 2022
+
+dependencies:
+  - role: iis

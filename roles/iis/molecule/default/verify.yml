@@ -1,0 +1,51 @@
+---
+- name: Verify IIS setup
+  hosts: all
+  gather_facts: false
+  vars:
+    iis_site_port: 80
+    iis_site_path: "C:\\inetpub\\wwwroot"
+    iis_app_pool_name: "DefaultAppPool"
+
+  tasks:
+    - name: Verify W3SVC is running
+      ansible.windows.win_service_info:
+        name: W3SVC
+      register: _w3svc
+
+    - name: Assert W3SVC is running
+      assert:
+        that: _w3svc.services[0].state == "running"
+        fail_msg: "IIS W3SVC service is not running"
+
+    - name: Verify IIS responds on port 80
+      ansible.windows.win_uri:
+        url: "http://localhost:80/"
+        method: GET
+        status_code: 200
+      register: _http
+
+    - name: Assert HTTP 200 from IIS
+      assert:
+        that: _http.status_code == 200
+        fail_msg: "IIS not returning HTTP 200"
+
+    - name: Verify web root directory exists
+      ansible.windows.win_stat:
+        path: "{{ iis_site_path }}"
+      register: _webroot
+
+    - name: Assert web root exists
+      assert:
+        that: _webroot.stat.exists and _webroot.stat.isdir
+        fail_msg: "Web root {{ iis_site_path }} missing"
+
+    - name: Verify index.html exists
+      ansible.windows.win_stat:
+        path: "{{ iis_site_path }}\\index.html"
+      register: _index
+
+    - name: Assert index.html deployed
+      assert:
+        that: _index.stat.exists
+        fail_msg: "index.html not found in web root"

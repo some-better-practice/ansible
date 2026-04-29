@@ -1,0 +1,9 @@
+---
+_aspnet_iis_features:
+  - Web-Asp-Net45
+  - NET-Framework-45-ASPNET
+  - Web-Net-Ext45
+  - Web-ISAPI-Ext
+  - Web-ISAPI-Filter
+
+_aspnet_hosting_bundle_dest: "C:\\Temp\\dotnet-hosting.exe"

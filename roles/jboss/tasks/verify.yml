@@ -1,0 +1,62 @@
+---
+- name: "[verify] Check WildFly service is running"
+  ansible.windows.win_service_info:
+    name: "{{ jboss_service_name }}"
+  register: _wildfly_svc
+
+- name: "[verify] Assert WildFly service is running"
+  assert:
+    that: _wildfly_svc.services[0].state == "running"
+    fail_msg: "WildFly service '{{ jboss_service_name }}' is not running"
+
+- name: "[verify] Check HTTP port {{ jboss_http_port }} is listening"
+  ansible.windows.win_wait_for:
+    port: "{{ jboss_http_port }}"
+    timeout: 30
+  changed_when: false
+
+- name: "[verify] Check WildFly HTTP response"
+  ansible.windows.win_uri:
+    url: "http://localhost:{{ jboss_http_port }}/"
+    method: GET
+    status_code: 200
+  register: _wildfly_http
+  changed_when: false
+
+- name: "[verify] Assert WildFly HTTP 200"
+  assert:
+    that: _wildfly_http.status_code == 200
+    fail_msg: "WildFly is not returning HTTP 200 on port {{ jboss_http_port }}"
+
+- name: "[verify] Check management port {{ jboss_management_port }} is listening"
+  ansible.windows.win_wait_for:
+    port: "{{ jboss_management_port }}"
+    timeout: 10
+  changed_when: false
+
+- name: "[verify] Check standalone.xml exists"
+  ansible.windows.win_stat:
+    path: "{{ _jboss_standalone_xml }}"
+  register: _xml_stat
+
+- name: "[verify] Assert standalone.xml exists"
+  assert:
+    that: _xml_stat.stat.exists
+    fail_msg: "standalone.xml not found at {{ _jboss_standalone_xml }}"
+
+- name: "[verify] Verify admin login works"
+  ansible.windows.win_uri:
+    url: "http://{{ jboss_management_bind_address }}:{{ jboss_management_port }}/management"
+    method: GET
+    user: "{{ jboss_admin_user }}"
+    password: "{{ jboss_admin_password }}"
+    force_basic_auth: true
+    status_code: 200
+  no_log: true
+  register: _mgmt_check
+  changed_when: false
+
+- name: "[verify] Assert management API accessible"
+  assert:
+    that: _mgmt_check.status_code == 200
+    fail_msg: "WildFly management API is not accessible"

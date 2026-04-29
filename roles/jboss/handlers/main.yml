@@ -1,0 +1,5 @@
+---
+- name: restart wildfly
+  ansible.windows.win_service:
+    name: "{{ jboss_service_name }}"
+    state: restarted

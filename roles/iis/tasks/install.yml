@@ -1,0 +1,11 @@
+---
+- name: Install IIS Windows features
+  ansible.windows.win_feature:
+    name: "{{ _iis_features }}"
+    state: present
+    include_management_tools: true
+  register: _iis_feature_install
+
+- name: Reboot if required after feature install
+  ansible.windows.win_reboot:
+  when: _iis_feature_install.reboot_required

@@ -1,4 +1,7 @@
 ---
 - name: Windows base configuration
   hosts: windows
-  roles: []
+  roles:
+    - role: iis
+    - role: aspnet
+    - role: jboss

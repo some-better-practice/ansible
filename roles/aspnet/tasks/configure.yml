@@ -1,0 +1,28 @@
+---
+- name: Ensure ASP.NET app directory exists
+  ansible.windows.win_file:
+    path: "{{ aspnet_site_path }}"
+    state: directory
+
+- name: Create ASP.NET Core App Pool
+  community.windows.win_iis_webapppool:
+    name: "{{ aspnet_app_pool_name }}"
+    state: started
+    attributes:
+      managedRuntimeVersion: ""
+      managedPipelineMode: "{{ aspnet_app_pool_pipeline }}"
+      processModel.identityType: ApplicationPoolIdentity
+
+- name: Create ASP.NET IIS site
+  community.windows.win_iis_website:
+    name: "{{ aspnet_site_name }}"
+    physical_path: "{{ aspnet_site_path }}"
+    application_pool: "{{ aspnet_app_pool_name }}"
+    state: started
+    port: "{{ aspnet_site_port }}"
+
+- name: Deploy web.config for ASP.NET Core
+  ansible.windows.win_template:
+    src: web.config.j2
+    dest: "{{ aspnet_site_path }}\\web.config"
+  notify: restart iis

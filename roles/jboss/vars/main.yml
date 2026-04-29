@@ -1,0 +1,10 @@
+---
+_jboss_download_url: "https://github.com/wildfly/wildfly/releases/download/{{ jboss_version }}/wildfly-{{ jboss_version }}.zip"
+_jboss_zip_dest: "C:\\Temp\\wildfly-{{ jboss_version }}.zip"
+_jboss_standalone_xml: "{{ jboss_install_dir }}\\standalone\\configuration\\standalone.xml"
+_jboss_service_exe: "{{ jboss_install_dir }}\\bin\\service\\service.bat"
+
+_java_download_url: "https://api.adoptium.net/v3/installer/releases/latest/{{ java_version }}/ga/windows/x64/jdk/hotspot/normal/eclipse"
+_nssm_download_url: "https://nssm.cc/release/nssm-2.24.zip"
+_nssm_dest: "C:\\Temp\\nssm.zip"
+_nssm_exe: "C:\\nssm\\nssm.exe"

@@ -1,0 +1,40 @@
+---
+- name: Start and enable IIS service
+  ansible.windows.win_service:
+    name: W3SVC
+    state: started
+    start_mode: auto
+
+- name: Ensure web root directory exists
+  ansible.windows.win_file:
+    path: "{{ iis_site_path }}"
+    state: directory
+
+- name: Configure Default App Pool
+  community.windows.win_iis_webapppool:
+    name: "{{ iis_app_pool_name }}"
+    state: started
+    attributes:
+      managedRuntimeVersion: "{{ iis_app_pool_dotnet_version }}"
+      processModel.identityType: ApplicationPoolIdentity
+
+- name: Configure Default Web Site binding
+  community.windows.win_iis_webbinding:
+    name: "{{ iis_site_name }}"
+    protocol: http
+    port: "{{ iis_site_port }}"
+    ip: "*"
+    state: present
+
+- name: Set Default Web Site physical path
+  community.windows.win_iis_website:
+    name: "{{ iis_site_name }}"
+    physical_path: "{{ iis_site_path }}"
+    application_pool: "{{ iis_app_pool_name }}"
+    state: started
+
+- name: Deploy default index page
+  ansible.windows.win_template:
+    src: index.html.j2
+    dest: "{{ iis_site_path }}\\index.html"
+  notify: restart iis

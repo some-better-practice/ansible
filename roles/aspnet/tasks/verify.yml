@@ -1,0 +1,52 @@
+---
+- name: "[verify] Check ASP.NET features are installed"
+  ansible.windows.win_feature:
+    name: "{{ _aspnet_iis_features }}"
+    state: present
+  register: _aspnet_features
+  changed_when: false
+
+- name: "[verify] Assert ASP.NET features installed"
+  assert:
+    that: not _aspnet_features.changed
+    fail_msg: "ASP.NET IIS features are not fully installed"
+
+- name: "[verify] Check .NET runtimes installed"
+  ansible.windows.win_command: dotnet --list-runtimes
+  register: _dotnet_runtimes
+  changed_when: false
+
+- name: "[verify] Assert .NET runtime version present"
+  assert:
+    that: "'Microsoft.AspNetCore.App {{ aspnet_dotnet_version }}' in _dotnet_runtimes.stdout"
+    fail_msg: ".NET {{ aspnet_dotnet_version }} ASP.NET Core runtime not found"
+
+- name: "[verify] Check ASP.NET app pool is started"
+  community.windows.win_iis_webapppool:
+    name: "{{ aspnet_app_pool_name }}"
+    state: started
+  register: _aspnet_pool
+  changed_when: false
+
+- name: "[verify] Check ASP.NET site is responding"
+  ansible.windows.win_uri:
+    url: "http://localhost:{{ aspnet_site_port }}/"
+    method: GET
+    status_code: [200, 404, 403]
+  register: _aspnet_http
+  changed_when: false
+
+- name: "[verify] Assert ASP.NET site is reachable"
+  assert:
+    that: _aspnet_http.status_code in [200, 404, 403]
+    fail_msg: "ASP.NET site on port {{ aspnet_site_port }} is not reachable"
+
+- name: "[verify] Assert web.config exists"
+  ansible.windows.win_stat:
+    path: "{{ aspnet_site_path }}\\web.config"
+  register: _webconfig_stat
+
+- name: "[verify] Assert web.config file present"
+  assert:
+    that: _webconfig_stat.stat.exists
+    fail_msg: "web.config not found at {{ aspnet_site_path }}"

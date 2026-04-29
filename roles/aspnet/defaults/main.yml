@@ -1,0 +1,10 @@
+---
+aspnet_dotnet_version: "8.0"
+aspnet_hosting_bundle_url: "https://download.visualstudio.microsoft.com/download/pr/hosting-bundle/dotnet-hosting-8.0-win.exe"
+aspnet_hosting_bundle_checksum: ""
+
+aspnet_app_pool_name: "AspNetCorePool"
+aspnet_app_pool_pipeline: "Integrated"
+aspnet_site_name: "AspNetApp"
+aspnet_site_port: 8080
+aspnet_site_path: "C:\\inetpub\\aspnetapp"

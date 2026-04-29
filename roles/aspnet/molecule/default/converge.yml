@@ -1,0 +1,11 @@
+---
+- name: Converge
+  hosts: all
+  vars:
+    aspnet_dotnet_version: "8.0"
+    aspnet_app_pool_name: "AspNetCorePool"
+    aspnet_site_name: "AspNetApp"
+    aspnet_site_port: 8080
+    aspnet_site_path: "C:\\inetpub\\aspnetapp"
+  roles:
+    - role: aspnet

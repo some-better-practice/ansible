@@ -1,0 +1,16 @@
+---
+- name: Converge
+  hosts: all
+  vars:
+    jboss_version: "26.1.3.Final"
+    jboss_install_dir: "C:\\wildfly"
+    jboss_service_name: "WildFly"
+    jboss_http_port: 8080
+    jboss_management_port: 9990
+    jboss_bind_address: "0.0.0.0"
+    jboss_management_bind_address: "127.0.0.1"
+    jboss_admin_user: "admin"
+    jboss_admin_password: "Admin@1234"
+    java_version: "17"
+  roles:
+    - role: jboss

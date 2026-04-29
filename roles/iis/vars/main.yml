@@ -1,0 +1,9 @@
+---
+_iis_features:
+  - Web-Server
+  - Web-Mgmt-Console
+  - Web-Default-Doc
+  - Web-Static-Content
+  - Web-Http-Errors
+  - Web-Http-Logging
+  - Web-Http-Redirect

@@ -1,0 +1,57 @@
+---
+- name: Ensure Temp directory exists
+  ansible.windows.win_file:
+    path: C:\Temp
+    state: directory
+
+- name: Install OpenJDK via Chocolatey
+  chocolatey.chocolatey.win_chocolatey:
+    name: "temurin{{ java_version }}"
+    state: present
+
+- name: Ensure WildFly install directory exists
+  ansible.windows.win_file:
+    path: "{{ jboss_install_dir }}"
+    state: directory
+
+- name: Check if WildFly is already extracted
+  ansible.windows.win_stat:
+    path: "{{ jboss_install_dir }}\\bin\\standalone.bat"
+  register: _wildfly_bin
+
+- name: Download WildFly zip
+  ansible.windows.win_get_url:
+    url: "{{ _jboss_download_url }}"
+    dest: "{{ _jboss_zip_dest }}"
+  when: not _wildfly_bin.stat.exists
+
+- name: Extract WildFly zip
+  community.windows.win_unzip:
+    src: "{{ _jboss_zip_dest }}"
+    dest: "C:\\Temp\\wildfly_extract"
+    creates: "C:\\Temp\\wildfly_extract\\wildfly-{{ jboss_version }}"
+  when: not _wildfly_bin.stat.exists
+
+- name: Move WildFly to install directory
+  ansible.windows.win_robocopy:
+    src: "C:\\Temp\\wildfly_extract\\wildfly-{{ jboss_version }}"
+    dest: "{{ jboss_install_dir }}"
+    flags: /E /MOVE
+  when: not _wildfly_bin.stat.exists
+
+- name: Download NSSM for service creation
+  ansible.windows.win_get_url:
+    url: "{{ _nssm_download_url }}"
+    dest: "{{ _nssm_dest }}"
+
+- name: Extract NSSM
+  community.windows.win_unzip:
+    src: "{{ _nssm_dest }}"
+    dest: C:\nssm_extract
+    creates: C:\nssm_extract\nssm-2.24
+
+- name: Copy NSSM exe to system path
+  ansible.windows.win_copy:
+    src: C:\nssm_extract\nssm-2.24\win64\nssm.exe
+    dest: "{{ _nssm_exe }}"
+    remote_src: true

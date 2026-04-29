@@ -1,0 +1,47 @@
+---
+- name: "[verify] Check W3SVC service is running"
+  ansible.windows.win_service_info:
+    name: W3SVC
+  register: _w3svc_info
+
+- name: "[verify] Assert W3SVC is running"
+  assert:
+    that: _w3svc_info.services[0].state == "running"
+    fail_msg: "IIS (W3SVC) service is not running"
+
+- name: "[verify] Check port {{ iis_site_port }} is listening"
+  ansible.windows.win_wait_for:
+    port: "{{ iis_site_port }}"
+    timeout: 10
+  register: _port_check
+  changed_when: false
+
+- name: "[verify] Check HTTP response from IIS"
+  ansible.windows.win_uri:
+    url: "http://localhost:{{ iis_site_port }}/"
+    method: GET
+    status_code: 200
+  register: _http_check
+  changed_when: false
+
+- name: "[verify] Assert HTTP 200 response"
+  assert:
+    that: _http_check.status_code == 200
+    fail_msg: "IIS is not returning HTTP 200 on port {{ iis_site_port }}"
+
+- name: "[verify] Check app pool is started"
+  community.windows.win_iis_webapppool:
+    name: "{{ iis_app_pool_name }}"
+    state: started
+  register: _pool_check
+  changed_when: false
+
+- name: "[verify] Assert web root directory exists"
+  ansible.windows.win_stat:
+    path: "{{ iis_site_path }}"
+  register: _webroot_stat
+
+- name: "[verify] Assert web root exists"
+  assert:
+    that: _webroot_stat.stat.exists and _webroot_stat.stat.isdir
+    fail_msg: "Web root directory {{ iis_site_path }} does not exist"

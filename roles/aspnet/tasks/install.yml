@@ -1,0 +1,33 @@
+---
+- name: Install ASP.NET IIS features
+  ansible.windows.win_feature:
+    name: "{{ _aspnet_iis_features }}"
+    state: present
+  register: _aspnet_feature_install
+
+- name: Reboot if required after feature install
+  ansible.windows.win_reboot:
+  when: _aspnet_feature_install.reboot_required
+
+- name: Ensure Temp directory exists
+  ansible.windows.win_file:
+    path: C:\Temp
+    state: directory
+
+- name: Download .NET Hosting Bundle
+  ansible.windows.win_get_url:
+    url: "{{ aspnet_hosting_bundle_url }}"
+    dest: "{{ _aspnet_hosting_bundle_dest }}"
+  register: _bundle_download
+
+- name: Install .NET Hosting Bundle
+  ansible.windows.win_package:
+    path: "{{ _aspnet_hosting_bundle_dest }}"
+    arguments: /quiet /norestart
+    state: present
+  when: _bundle_download.changed
+  register: _bundle_install
+
+- name: Reboot if required after .NET install
+  ansible.windows.win_reboot:
+  when: _bundle_install.reboot_required | default(false)

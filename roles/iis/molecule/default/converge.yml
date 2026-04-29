@@ -1,0 +1,11 @@
+---
+- name: Converge
+  hosts: all
+  vars:
+    iis_site_name: "Default Web Site"
+    iis_site_port: 80
+    iis_site_path: "C:\\inetpub\\wwwroot"
+    iis_app_pool_name: "DefaultAppPool"
+    iis_app_pool_dotnet_version: "v4.0"
+  roles:
+    - role: iis

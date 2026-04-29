@@ -1,0 +1,10 @@
+---
+- name: restart iis
+  ansible.windows.win_service:
+    name: W3SVC
+    state: restarted
+
+- name: recycle app pool
+  community.windows.win_iis_webapppool:
+    name: "{{ aspnet_app_pool_name }}"
+    state: restarted

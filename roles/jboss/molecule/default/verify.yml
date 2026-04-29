@@ -1,0 +1,75 @@
+---
+- name: Verify WildFly (JBoss) setup
+  hosts: all
+  gather_facts: false
+  vars:
+    jboss_service_name: "WildFly"
+    jboss_http_port: 8080
+    jboss_management_port: 9990
+    jboss_management_bind_address: "127.0.0.1"
+    jboss_admin_user: "admin"
+    jboss_admin_password: "Admin@1234"
+    jboss_install_dir: "C:\\wildfly"
+
+  tasks:
+    - name: Verify WildFly service is running
+      ansible.windows.win_service_info:
+        name: "{{ jboss_service_name }}"
+      register: _wf_svc
+
+    - name: Assert WildFly is running
+      assert:
+        that: _wf_svc.services[0].state == "running"
+        fail_msg: "WildFly service is not running"
+
+    - name: Verify HTTP port {{ jboss_http_port }} is open
+      ansible.windows.win_wait_for:
+        port: "{{ jboss_http_port }}"
+        timeout: 30
+      changed_when: false
+
+    - name: Verify WildFly returns HTTP 200
+      ansible.windows.win_uri:
+        url: "http://localhost:{{ jboss_http_port }}/"
+        method: GET
+        status_code: 200
+      register: _wf_http
+      changed_when: false
+
+    - name: Assert HTTP 200 from WildFly
+      assert:
+        that: _wf_http.status_code == 200
+        fail_msg: "WildFly not responding on port {{ jboss_http_port }}"
+
+    - name: Verify management port {{ jboss_management_port }} is open
+      ansible.windows.win_wait_for:
+        port: "{{ jboss_management_port }}"
+        timeout: 10
+      changed_when: false
+
+    - name: Verify management API accessible
+      ansible.windows.win_uri:
+        url: "http://{{ jboss_management_bind_address }}:{{ jboss_management_port }}/management"
+        method: GET
+        user: "{{ jboss_admin_user }}"
+        password: "{{ jboss_admin_password }}"
+        force_basic_auth: true
+        status_code: 200
+      no_log: true
+      register: _mgmt
+      changed_when: false
+
+    - name: Assert management API returns 200
+      assert:
+        that: _mgmt.status_code == 200
+        fail_msg: "WildFly management API not accessible"
+
+    - name: Verify standalone.xml exists
+      ansible.windows.win_stat:
+        path: "{{ jboss_install_dir }}\\standalone\\configuration\\standalone.xml"
+      register: _xml
+
+    - name: Assert standalone.xml present
+      assert:
+        that: _xml.stat.exists
+        fail_msg: "standalone.xml not found"

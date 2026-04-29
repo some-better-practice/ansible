@@ -1,0 +1,50 @@
+---
+- name: Deploy standalone.xml configuration
+  ansible.windows.win_template:
+    src: standalone.xml.j2
+    dest: "{{ _jboss_standalone_xml }}"
+  notify: restart wildfly
+
+- name: Add WildFly management user
+  ansible.windows.win_command: >
+    {{ jboss_install_dir }}\bin\add-user.bat
+    -u {{ jboss_admin_user }}
+    -p {{ jboss_admin_password }}
+    -s
+  no_log: true
+  changed_when: false
+
+- name: Create WildFly Windows service via NSSM
+  ansible.windows.win_command: >
+    {{ _nssm_exe }} install {{ jboss_service_name }}
+    {{ jboss_install_dir }}\bin\standalone.bat
+  args:
+    creates: "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\{{ jboss_service_name }}"
+
+- name: Configure NSSM service AppDirectory
+  ansible.windows.win_command: >
+    {{ _nssm_exe }} set {{ jboss_service_name }} AppDirectory {{ jboss_install_dir }}\bin
+  changed_when: false
+
+- name: Configure NSSM stdout log
+  ansible.windows.win_command: >
+    {{ _nssm_exe }} set {{ jboss_service_name }} AppStdout
+    {{ jboss_install_dir }}\standalone\log\service-stdout.log
+  changed_when: false
+
+- name: Configure NSSM stderr log
+  ansible.windows.win_command: >
+    {{ _nssm_exe }} set {{ jboss_service_name }} AppStderr
+    {{ jboss_install_dir }}\standalone\log\service-stderr.log
+  changed_when: false
+
+- name: Start and enable WildFly service
+  ansible.windows.win_service:
+    name: "{{ jboss_service_name }}"
+    state: started
+    start_mode: auto
+
+- name: Wait for WildFly HTTP port to be available
+  ansible.windows.win_wait_for:
+    port: "{{ jboss_http_port }}"
+    timeout: 120

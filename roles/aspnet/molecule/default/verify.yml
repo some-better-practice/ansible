@@ -1,0 +1,63 @@
+---
+- name: Verify ASP.NET setup
+  hosts: all
+  gather_facts: false
+  vars:
+    aspnet_dotnet_version: "8.0"
+    aspnet_app_pool_name: "AspNetCorePool"
+    aspnet_site_port: 8080
+    aspnet_site_path: "C:\\inetpub\\aspnetapp"
+    aspnet_iis_features:
+      - Web-Asp-Net45
+      - NET-Framework-45-ASPNET
+
+  tasks:
+    - name: Verify IIS is running
+      ansible.windows.win_service_info:
+        name: W3SVC
+      register: _w3svc
+
+    - name: Assert IIS running
+      assert:
+        that: _w3svc.services[0].state == "running"
+        fail_msg: "IIS W3SVC is not running"
+
+    - name: Verify .NET runtimes installed
+      ansible.windows.win_command: dotnet --list-runtimes
+      register: _dotnet_runtimes
+      changed_when: false
+
+    - name: Assert .NET runtime present
+      assert:
+        that: "'Microsoft.AspNetCore.App {{ aspnet_dotnet_version }}' in _dotnet_runtimes.stdout"
+        fail_msg: ".NET {{ aspnet_dotnet_version }} ASP.NET Core runtime not found"
+
+    - name: Verify ASP.NET app pool exists
+      community.windows.win_iis_webapppool:
+        name: "{{ aspnet_app_pool_name }}"
+        state: started
+      register: _pool
+      changed_when: false
+
+    - name: Verify web.config exists
+      ansible.windows.win_stat:
+        path: "{{ aspnet_site_path }}\\web.config"
+      register: _webconfig
+
+    - name: Assert web.config present
+      assert:
+        that: _webconfig.stat.exists
+        fail_msg: "web.config not found at {{ aspnet_site_path }}"
+
+    - name: Verify site responds on port {{ aspnet_site_port }}
+      ansible.windows.win_uri:
+        url: "http://localhost:{{ aspnet_site_port }}/"
+        method: GET
+        status_code: [200, 404, 403]
+      register: _site_http
+      changed_when: false
+
+    - name: Assert site is reachable
+      assert:
+        that: _site_http.status_code in [200, 404, 403]
+        fail_msg: "ASP.NET site on port {{ aspnet_site_port }} unreachable"
